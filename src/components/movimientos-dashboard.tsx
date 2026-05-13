@@ -120,7 +120,7 @@ export function MovimientosDashboard() {
   const [fechaDesde, setFechaDesde] = useState<string>(toLocalInput(sevenAgo));
   const [fechaHasta, setFechaHasta] = useState<string>(toLocalInput(today));
   const [placa, setPlaca] = useState("");
-  const [estadosSel, setEstadosSel] = useState<number[]>([]);
+  const [estadosSel, setEstadosSel] = useState<number[]>([2]);
   const [tiposSel, setTiposSel] = useState<number[]>([]);
 
   const [data, setData] = useState<Movimiento[]>([]);
@@ -239,7 +239,7 @@ export function MovimientosDashboard() {
     setFechaDesde(toLocalInput(sevenAgo));
     setFechaHasta(toLocalInput(today));
     setPlaca("");
-    setEstadosSel([]);
+    setEstadosSel([2]);
     setTiposSel([]);
   };
 
