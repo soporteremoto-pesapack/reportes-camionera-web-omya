@@ -5,7 +5,8 @@
  *
  * Pensado para ejecutarse cada 15 minutos vía Programador de Tareas Windows.
  */
-import "dotenv/config";
+import { config } from "dotenv";
+config({ path: ".env.local" });
 import sql, { type ConnectionPool, type config as SqlConfig } from "mssql";
 import { Timestamp } from "firebase-admin/firestore";
 import {
@@ -109,6 +110,8 @@ async function fetchTopMovimientos(pool: ConnectionPool): Promise<Row[]> {
       Observaciones, TipoProceso, AlarmaPesoManual, AlarmaPesoVacio,
       BasculaEntrada, BasculaSalida
     FROM dbo.Movimientos
+    WHERE (EstadoMovimiento = 2 OR EstadoMovimiento = 99)
+      AND Reportado = 0
     ORDER BY CodigoMovimiento DESC
   `);
 
@@ -157,14 +160,32 @@ async function upsertBatches(rows: Row[]): Promise<void> {
   process.stdout.write("\n");
 }
 
-async function pruneOlder(keepCodigos: Set<number>): Promise<number> {
+async function markAsReported(pool: ConnectionPool, codigos: number[]): Promise<void> {
+  if (codigos.length === 0) return;
+  // Dividimos en lotes para no exceder límites de SQL
+  const batchSize = 500;
+  for (let i = 0; i < codigos.length; i += batchSize) {
+    const chunk = codigos.slice(i, i + batchSize);
+    await pool.request().query(`
+      UPDATE dbo.Movimientos
+      SET Reportado = 1
+      WHERE CodigoMovimiento IN (${chunk.join(",")})
+    `);
+  }
+}
+
+async function pruneToLimit(): Promise<number> {
   const db = getAdminFirestore();
   const col = db.collection(COLLECTION);
-  const all = await col.select("CodigoMovimiento").get();
-  const toDelete = all.docs.filter((d) => {
-    const codigo = (d.data() as { CodigoMovimiento?: number }).CodigoMovimiento;
-    return typeof codigo === "number" && !keepCodigos.has(codigo);
-  });
+  // Obtenemos todos los documentos ordenados por código descendente
+  const snapshot = await col
+    .orderBy("CodigoMovimiento", "desc")
+    .select("CodigoMovimiento")
+    .get();
+
+  if (snapshot.size <= TOP_N) return 0;
+
+  const toDelete = snapshot.docs.slice(TOP_N);
   let deleted = 0;
   for (let i = 0; i < toDelete.length; i += FIRESTORE_BATCH_SIZE) {
     const chunk = toDelete.slice(i, i + FIRESTORE_BATCH_SIZE);
@@ -206,17 +227,25 @@ async function main(): Promise<void> {
 
     await upsertBatches(rows);
 
-    const codigos = new Set(rows.map((r) => r.CodigoMovimiento));
-    const minCodigo = Math.min(...codigos);
-    const maxCodigo = Math.max(...codigos);
+    const codigosArr = rows.map((r) => r.CodigoMovimiento);
+    const codigosSet = new Set(codigosArr);
+    const minCodigo = Math.min(...codigosArr);
+    const maxCodigo = Math.max(...codigosArr);
 
-    const deleted = await pruneOlder(codigos);
-    console.log(`[sync-cloud] eliminados ${deleted} docs antiguos`);
+    // Marcamos como reportados en SQL Server
+    console.log("[sync-cloud] marcando como reportados en SQL Server...");
+    await markAsReported(pool, codigosArr);
+
+    // Limpieza de registros muy viejos en Firestore para mantener solo los TOP_N (2000)
+    const deleted = await pruneToLimit();
+    if (deleted > 0) {
+      console.log(`[sync-cloud] eliminados ${deleted} docs antiguos en Firestore`);
+    }
 
     await updateSyncMeta(rows.length, minCodigo, maxCodigo);
 
     console.log(
-      `[sync-cloud] OK — ${rows.length} filas sincronizadas a Firestore`,
+      `[sync-cloud] OK — ${rows.length} filas sincronizadas y marcadas como reportadas`,
     );
   } finally {
     await pool.close();

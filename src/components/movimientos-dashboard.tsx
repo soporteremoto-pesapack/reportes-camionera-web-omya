@@ -58,7 +58,7 @@ type SortKey = keyof Movimiento;
 type SortConfig = { key: SortKey; direction: "asc" | "desc" };
 
 const ROWS_PER_PAGE = 25;
-const ESTADOS = [1, 2, 99] as const;
+const ESTADOS = [2, 99] as const;
 const TIPOS = [0, 1] as const;
 
 const chartConfig = {
@@ -140,7 +140,7 @@ export function MovimientosDashboard() {
     fechaDesde: fromLocalInput(fechaDesde).toISOString(),
     fechaHasta: fromLocalInput(fechaHasta).toISOString(),
     placa: placa.trim() || undefined,
-    estados: estadosSel.length ? estadosSel : undefined,
+    estados: estadosSel.length ? estadosSel : [2, 99],
     tipos: tiposSel.length ? tiposSel : undefined,
   });
 
