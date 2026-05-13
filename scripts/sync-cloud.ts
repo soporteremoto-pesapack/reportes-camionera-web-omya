@@ -1,0 +1,235 @@
+/**
+ * Sincroniza los últimos 2000 movimientos de SQL Server a Firestore.
+ *
+ *   npm run sync-cloud
+ *
+ * Pensado para ejecutarse cada 15 minutos vía Programador de Tareas Windows.
+ */
+import "dotenv/config";
+import sql, { type ConnectionPool, type config as SqlConfig } from "mssql";
+import { Timestamp } from "firebase-admin/firestore";
+import {
+  FirebaseConfigError,
+  getAdminFirestore,
+  getFirebaseAdminConfig,
+} from "../src/lib/firebaseAdmin";
+
+const TOP_N = Number(process.env.SYNC_TOP_N ?? "2000");
+const COLLECTION = "movimientos";
+const META_DOC = "meta/sync";
+const FIRESTORE_BATCH_SIZE = 500;
+
+interface Row {
+  CodigoMovimiento: number;
+  Placa: string | null;
+  PesoEntrada: number | null;
+  PesoSalida: number | null;
+  PesoTotal: number | null;
+  FechaEntrada: string | null;
+  HoraEntrada: string | null;
+  FechaSalida: string | null;
+  HoraSalida: string | null;
+  EstadoMovimiento: number | null;
+  UsuarioPesajeEntrada: string | null;
+  UsuarioPesajeSalida: string | null;
+  Observaciones: string | null;
+  TipoProceso: number | null;
+  AlarmaPesoManual: number | null;
+  AlarmaPesoVacio: number | null;
+  BasculaEntrada: number | null;
+  BasculaSalida: number | null;
+  EntradaIso: string | null;
+}
+
+function buildSqlConfig(): SqlConfig {
+  const server = process.env.SQL_SERVER ?? "localhost";
+  const portRaw = process.env.SQL_PORT;
+  const instance = process.env.SQL_INSTANCE;
+  const database = process.env.SQL_DATABASE ?? "DOSIPACK_CAMIONERA_OMYA";
+  const user = process.env.SQL_USER ?? "DosiAdmin";
+  const password = process.env.SQL_PASSWORD ?? "BACKFRONTFLIP";
+  const encrypt = (process.env.SQL_ENCRYPT ?? "false").toLowerCase() === "true";
+  const trust =
+    (process.env.SQL_TRUST_SERVER_CERTIFICATE ?? "true").toLowerCase() === "true";
+
+  const cfg: SqlConfig = {
+    server,
+    database,
+    user,
+    password,
+    options: {
+      encrypt,
+      trustServerCertificate: trust,
+      ...(instance ? { instanceName: instance } : {}),
+    },
+    requestTimeout: 60_000,
+    connectionTimeout: 30_000,
+  };
+  if (portRaw) {
+    const port = Number(portRaw);
+    if (!Number.isNaN(port)) cfg.port = port;
+  }
+  return cfg;
+}
+
+function pad2(n: number): string {
+  return String(n).padStart(2, "0");
+}
+
+function toIsoDate(value: unknown): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return `${value.getFullYear()}-${pad2(value.getMonth() + 1)}-${pad2(value.getDate())}`;
+  }
+  return String(value);
+}
+
+function toTimeString(value: unknown): string | null {
+  if (value == null) return null;
+  if (value instanceof Date) {
+    if (Number.isNaN(value.getTime())) return null;
+    return `${pad2(value.getUTCHours())}:${pad2(value.getUTCMinutes())}:${pad2(value.getUTCSeconds())}`;
+  }
+  return String(value);
+}
+
+function toNum(value: unknown): number | null {
+  if (value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function fetchTopMovimientos(pool: ConnectionPool): Promise<Row[]> {
+  const result = await pool.request().query(`
+    SELECT TOP ${TOP_N}
+      CodigoMovimiento, Placa, PesoEntrada, PesoSalida, PesoTotal,
+      FechaEntrada, HoraEntrada, FechaSalida, HoraSalida,
+      EstadoMovimiento, UsuarioPesajeEntrada, UsuarioPesajeSalida,
+      Observaciones, TipoProceso, AlarmaPesoManual, AlarmaPesoVacio,
+      BasculaEntrada, BasculaSalida
+    FROM dbo.Movimientos
+    ORDER BY CodigoMovimiento DESC
+  `);
+
+  return result.recordset.map((r): Row => {
+    const fechaEntrada = toIsoDate(r.FechaEntrada);
+    const horaEntrada = toTimeString(r.HoraEntrada);
+    const entradaIso = fechaEntrada
+      ? `${fechaEntrada} ${horaEntrada ?? "00:00:00"}`
+      : null;
+    return {
+      CodigoMovimiento: Number(r.CodigoMovimiento),
+      Placa: r.Placa ?? null,
+      PesoEntrada: toNum(r.PesoEntrada),
+      PesoSalida: toNum(r.PesoSalida),
+      PesoTotal: toNum(r.PesoTotal),
+      FechaEntrada: fechaEntrada,
+      HoraEntrada: horaEntrada,
+      FechaSalida: toIsoDate(r.FechaSalida),
+      HoraSalida: toTimeString(r.HoraSalida),
+      EstadoMovimiento: toNum(r.EstadoMovimiento),
+      UsuarioPesajeEntrada: r.UsuarioPesajeEntrada ?? null,
+      UsuarioPesajeSalida: r.UsuarioPesajeSalida ?? null,
+      Observaciones: r.Observaciones ?? null,
+      TipoProceso: toNum(r.TipoProceso),
+      AlarmaPesoManual: toNum(r.AlarmaPesoManual),
+      AlarmaPesoVacio: toNum(r.AlarmaPesoVacio),
+      BasculaEntrada: toNum(r.BasculaEntrada),
+      BasculaSalida: toNum(r.BasculaSalida),
+      EntradaIso: entradaIso,
+    };
+  });
+}
+
+async function upsertBatches(rows: Row[]): Promise<void> {
+  const db = getAdminFirestore();
+  const col = db.collection(COLLECTION);
+  for (let i = 0; i < rows.length; i += FIRESTORE_BATCH_SIZE) {
+    const chunk = rows.slice(i, i + FIRESTORE_BATCH_SIZE);
+    const batch = db.batch();
+    for (const row of chunk) {
+      batch.set(col.doc(String(row.CodigoMovimiento)), row);
+    }
+    await batch.commit();
+    process.stdout.write(`  upsert ${i + chunk.length}/${rows.length}\r`);
+  }
+  process.stdout.write("\n");
+}
+
+async function pruneOlder(keepCodigos: Set<number>): Promise<number> {
+  const db = getAdminFirestore();
+  const col = db.collection(COLLECTION);
+  const all = await col.select("CodigoMovimiento").get();
+  const toDelete = all.docs.filter((d) => {
+    const codigo = (d.data() as { CodigoMovimiento?: number }).CodigoMovimiento;
+    return typeof codigo === "number" && !keepCodigos.has(codigo);
+  });
+  let deleted = 0;
+  for (let i = 0; i < toDelete.length; i += FIRESTORE_BATCH_SIZE) {
+    const chunk = toDelete.slice(i, i + FIRESTORE_BATCH_SIZE);
+    const batch = db.batch();
+    for (const doc of chunk) batch.delete(doc.ref);
+    await batch.commit();
+    deleted += chunk.length;
+  }
+  return deleted;
+}
+
+async function updateSyncMeta(
+  rowCount: number,
+  minCodigo: number,
+  maxCodigo: number,
+): Promise<void> {
+  const db = getAdminFirestore();
+  await db.doc(META_DOC).set({
+    lastSyncAt: Timestamp.now(),
+    rowCount,
+    minCodigo,
+    maxCodigo,
+  });
+}
+
+async function main(): Promise<void> {
+  console.log(`[sync-cloud] iniciando — TOP ${TOP_N}`);
+  getFirebaseAdminConfig(); // valida vars antes de tocar SQL
+
+  console.log("[sync-cloud] conectando a SQL Server...");
+  const pool = await sql.connect(buildSqlConfig());
+  try {
+    const rows = await fetchTopMovimientos(pool);
+    console.log(`[sync-cloud] ${rows.length} filas leídas de SQL Server`);
+    if (rows.length === 0) {
+      console.log("[sync-cloud] nada para sincronizar");
+      return;
+    }
+
+    await upsertBatches(rows);
+
+    const codigos = new Set(rows.map((r) => r.CodigoMovimiento));
+    const minCodigo = Math.min(...codigos);
+    const maxCodigo = Math.max(...codigos);
+
+    const deleted = await pruneOlder(codigos);
+    console.log(`[sync-cloud] eliminados ${deleted} docs antiguos`);
+
+    await updateSyncMeta(rows.length, minCodigo, maxCodigo);
+
+    console.log(
+      `[sync-cloud] OK — ${rows.length} filas sincronizadas a Firestore`,
+    );
+  } finally {
+    await pool.close();
+  }
+}
+
+main().catch((err: unknown) => {
+  if (err instanceof FirebaseConfigError) {
+    console.error(`[sync-cloud] Firebase: ${err.message}`);
+  } else if (err instanceof Error) {
+    console.error(`[sync-cloud] error: ${err.message}`);
+  } else {
+    console.error("[sync-cloud] error desconocido", err);
+  }
+  process.exitCode = 1;
+});
