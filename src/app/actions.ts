@@ -20,32 +20,25 @@ export interface MovimientosResponse {
 export async function fetchMovimientosAction(
   filter: MovimientoFilter,
 ): Promise<MovimientosResponse> {
+  if (!isFirebaseConfigured()) {
+    throw new Error(
+      "La configuración de Firebase no está disponible. No se pueden consultar los datos.",
+    );
+  }
+
   try {
-    const data = await getMovimientos(filter);
-    return { data, source: "sql", lastSyncAt: null, warning: null };
-  } catch (sqlErr) {
-    const sqlMsg = sqlErr instanceof Error ? sqlErr.message : String(sqlErr);
-
-    if (!isFirebaseConfigured()) {
-      throw sqlErr;
-    }
-
-    try {
-      const [data, status] = await Promise.all([
-        getMovimientosFromFirestore(filter),
-        getSyncStatus(),
-      ]);
-      return {
-        data,
-        source: "firestore",
-        lastSyncAt: status.lastSyncAt,
-        warning: `SQL Server no disponible (${sqlMsg}). Mostrando últimos reportes sincronizados a la nube.`,
-      };
-    } catch (cloudErr) {
-      const cloudMsg = cloudErr instanceof Error ? cloudErr.message : String(cloudErr);
-      throw new Error(
-        `SQL Server falló (${sqlMsg}) y la nube tampoco respondió (${cloudMsg}).`,
-      );
-    }
+    const [data, status] = await Promise.all([
+      getMovimientosFromFirestore(filter),
+      getSyncStatus(),
+    ]);
+    return {
+      data,
+      source: "firestore",
+      lastSyncAt: status.lastSyncAt,
+      warning: null, // Ya no es una advertencia, es el comportamiento normal
+    };
+  } catch (cloudErr) {
+    const cloudMsg = cloudErr instanceof Error ? cloudErr.message : String(cloudErr);
+    throw new Error(`Error consultando Firestore: ${cloudMsg}`);
   }
 }

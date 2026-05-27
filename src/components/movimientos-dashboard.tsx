@@ -16,7 +16,6 @@ import {
   ArrowUpDown,
   ChevronLeft,
   ChevronRight,
-  CloudOff,
   Download,
   FileSpreadsheet,
   FileText,
@@ -52,31 +51,26 @@ import {
   type Movimiento,
   type MovimientoFilter,
 } from "@/lib/types";
-import { fetchMovimientosAction, type MovimientosSource } from "@/app/actions";
+import { fetchMovimientosAction } from "@/app/actions";
 
 type SortKey = keyof Movimiento;
 type SortConfig = { key: SortKey; direction: "asc" | "desc" };
-
 const ROWS_PER_PAGE = 25;
 const ESTADOS = [2, 99] as const;
 const TIPOS = [0, 1] as const;
-
 const chartConfig = {
   total: {
     label: "Peso Total (kg)",
     color: "hsl(var(--primary))",
   },
 } satisfies ChartConfig;
-
 function toLocalInput(d: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
-
 function fromLocalInput(s: string): Date {
   return new Date(s);
 }
-
 function formatDateTime(date: string | null, time: string | null): string {
   if (!date) return "—";
   try {
@@ -86,7 +80,6 @@ function formatDateTime(date: string | null, time: string | null): string {
     return `${date} ${time ?? ""}`;
   }
 }
-
 function formatNumber(n: number | null, decimals = 0): string {
   if (n == null) return "—";
   return new Intl.NumberFormat("es-CO", {
@@ -94,7 +87,6 @@ function formatNumber(n: number | null, decimals = 0): string {
     maximumFractionDigits: decimals,
   }).format(n);
 }
-
 function compareValues(a: unknown, b: unknown): number {
   if (a == null && b == null) return 0;
   if (a == null) return -1;
@@ -102,10 +94,8 @@ function compareValues(a: unknown, b: unknown): number {
   if (typeof a === "number" && typeof b === "number") return a - b;
   return String(a).localeCompare(String(b), "es", { numeric: true });
 }
-
 export function MovimientosDashboard() {
   const { toast } = useToast();
-
   const today = useMemo(() => {
     const d = new Date();
     d.setHours(23, 59, 59, 0);
@@ -116,26 +106,19 @@ export function MovimientosDashboard() {
     d.setHours(0, 0, 0, 0);
     return d;
   }, []);
-
   const [fechaDesde, setFechaDesde] = useState<string>(toLocalInput(sevenAgo));
   const [fechaHasta, setFechaHasta] = useState<string>(toLocalInput(today));
   const [placa, setPlaca] = useState("");
   const [estadosSel, setEstadosSel] = useState<number[]>([2]);
   const [tiposSel, setTiposSel] = useState<number[]>([]);
-
   const [data, setData] = useState<Movimiento[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [source, setSource] = useState<MovimientosSource>("sql");
-  const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
-  const [warning, setWarning] = useState<string | null>(null);
-
   const [sortConfig, setSortConfig] = useState<SortConfig>({
     key: "EntradaTimestamp",
     direction: "desc",
   });
   const [page, setPage] = useState(1);
-
   const buildFilter = (): MovimientoFilter => ({
     fechaDesde: fromLocalInput(fechaDesde).toISOString(),
     fechaHasta: fromLocalInput(fechaHasta).toISOString(),
@@ -143,27 +126,16 @@ export function MovimientosDashboard() {
     estados: estadosSel.length ? estadosSel : [2, 99],
     tipos: tiposSel.length ? tiposSel : undefined,
   });
-
   const runQuery = async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await fetchMovimientosAction(buildFilter());
       setData(res.data);
-      setSource(res.source);
-      setLastSyncAt(res.lastSyncAt);
-      setWarning(res.warning);
       setPage(1);
-      if (res.source === "firestore") {
-        toast({
-          title: "Modo sin conexión",
-          description: "Mostrando últimos reportes sincronizados a la nube.",
-        });
-      }
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Error consultando la base de datos";
       setError(msg);
-      setWarning(null);
       toast({
         title: "Error de consulta",
         description: msg,
@@ -173,12 +145,10 @@ export function MovimientosDashboard() {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     runQuery();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
   const sortedData = useMemo(() => {
     const arr = [...data];
     arr.sort((a, b) => {
@@ -187,20 +157,17 @@ export function MovimientosDashboard() {
     });
     return arr;
   }, [data, sortConfig]);
-
   const totalPages = Math.max(1, Math.ceil(sortedData.length / ROWS_PER_PAGE));
   const pageRows = useMemo(() => {
     const start = (page - 1) * ROWS_PER_PAGE;
     return sortedData.slice(start, start + ROWS_PER_PAGE);
   }, [sortedData, page]);
-
   const stats = useMemo(() => {
     const total = data.length;
     const pesoTotal = data.reduce((acc, m) => acc + (m.PesoTotal ?? 0), 0);
     const promedio = total > 0 ? pesoTotal / total : 0;
     return { total, pesoTotal, promedio };
   }, [data]);
-
   const chartData = useMemo(() => {
     const map = new Map<string, number>();
     for (const m of data) {
@@ -216,7 +183,6 @@ export function MovimientosDashboard() {
       }))
       .sort((a, b) => a.fecha.localeCompare(b.fecha));
   }, [data]);
-
   const handleSort = (key: SortKey) => {
     setSortConfig((cur) =>
       cur.key === key
@@ -224,17 +190,14 @@ export function MovimientosDashboard() {
         : { key, direction: "asc" },
     );
   };
-
   const sortArrow = (key: SortKey) =>
     sortConfig.key === key ? (sortConfig.direction === "asc" ? "▲" : "▼") : (
       <ArrowUpDown className="ml-1 inline h-3 w-3 opacity-40" />
     );
-
   const toggleEstado = (v: number) =>
     setEstadosSel((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
   const toggleTipo = (v: number) =>
     setTiposSel((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
-
   const clearFilters = () => {
     setFechaDesde(toLocalInput(sevenAgo));
     setFechaHasta(toLocalInput(today));
@@ -242,7 +205,6 @@ export function MovimientosDashboard() {
     setEstadosSel([2]);
     setTiposSel([]);
   };
-
   const handleExportExcel = async () => {
     try {
       const xlsx = await import("xlsx");
@@ -287,13 +249,11 @@ export function MovimientosDashboard() {
       });
     }
   };
-
   const handleExportPdf = async () => {
     try {
       const { default: jsPDF } = await import("jspdf");
       const autoTableMod = await import("jspdf-autotable");
       const autoTable = (autoTableMod as { default: (doc: unknown, opts: unknown) => void }).default;
-
       const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
       doc.setFontSize(14);
       doc.text("Reporte de Movimientos - Camionera Omya Río Claro", 40, 40);
@@ -304,7 +264,6 @@ export function MovimientosDashboard() {
         58,
       );
       doc.text(`Registros: ${sortedData.length}`, 40, 72);
-
       autoTable(doc, {
         startY: 90,
         styles: { fontSize: 7, cellPadding: 3 },
@@ -340,7 +299,6 @@ export function MovimientosDashboard() {
           m.Observaciones ?? "",
         ]),
       });
-
       const filename = `movimientos_${format(new Date(), "yyyyMMdd_HHmm")}.pdf`;
       doc.save(filename);
     } catch (e) {
@@ -351,32 +309,8 @@ export function MovimientosDashboard() {
       });
     }
   };
-
-  const lastSyncLabel = useMemo(() => {
-    if (!lastSyncAt) return null;
-    try {
-      return format(parseISO(lastSyncAt), "dd/MM/yyyy HH:mm:ss", { locale: es });
-    } catch {
-      return lastSyncAt;
-    }
-  }, [lastSyncAt]);
-
   return (
     <div className="flex flex-col gap-6">
-      {source === "firestore" && (
-        <div className="flex items-start gap-3 rounded-md border border-amber-500/50 bg-amber-50 px-4 py-3 text-sm text-amber-900 dark:bg-amber-950/30 dark:text-amber-200">
-          <CloudOff className="mt-0.5 h-5 w-5 shrink-0" />
-          <div className="flex-1">
-            <p className="font-semibold">Modo sin conexión — datos desde la nube</p>
-            <p className="text-xs">
-              {warning ?? "No se pudo conectar al SQL Server local."}
-              {lastSyncLabel
-                ? ` Última sincronización: ${lastSyncLabel}.`
-                : ""}
-            </p>
-          </div>
-        </div>
-      )}
       <Card>
         <CardHeader>
           <div className="flex items-center gap-2">
