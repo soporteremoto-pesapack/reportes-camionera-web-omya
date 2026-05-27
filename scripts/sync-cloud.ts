@@ -110,7 +110,7 @@ async function fetchTopMovimientos(pool: ConnectionPool): Promise<Row[]> {
       Observaciones, TipoProceso, AlarmaPesoManual, AlarmaPesoVacio,
       BasculaEntrada, BasculaSalida
     FROM dbo.Movimientos
-    WHERE (EstadoMovimiento = 2 OR EstadoMovimiento = 99)
+    WHERE EstadoMovimiento IN (1, 2, 99)
       AND Reportado = 0
     ORDER BY CodigoMovimiento DESC
   `);
