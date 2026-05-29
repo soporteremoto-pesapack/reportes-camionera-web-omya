@@ -56,7 +56,7 @@ import { fetchMovimientosAction } from "@/app/actions";
 type SortKey = keyof Movimiento;
 type SortConfig = { key: SortKey; direction: "asc" | "desc" };
 const ROWS_PER_PAGE = 25;
-const ESTADOS = [2, 99] as const;
+const ESTADOS = [1, 2, 99] as const;
 const TIPOS = [0, 1] as const;
 const chartConfig = {
   total: {
@@ -131,6 +131,7 @@ export function MovimientosDashboard() {
     setError(null);
     try {
       const res = await fetchMovimientosAction(buildFilter());
+      if (!res) throw new Error("No se recibió respuesta del servidor. Verificar configuración de Firebase en Vercel.");
       setData(res.data);
       setPage(1);
     } catch (e) {
