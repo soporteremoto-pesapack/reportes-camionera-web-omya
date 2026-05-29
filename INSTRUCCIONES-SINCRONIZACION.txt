@@ -1,0 +1,197 @@
+================================================================================
+  INSTRUCCIONES DE INSTALACIÓN Y CONFIGURACIÓN
+  Sincronización automática SQL Server → Firebase
+  Sistema de Reportes Camionera — Dosipack / Omya Río Claro
+================================================================================
+
+OBJETIVO
+--------
+Este documento explica cómo instalar y programar la tarea que sincroniza
+automáticamente los movimientos de pesaje desde el SQL Server de la planta
+hacia Firebase (nube), para que la aplicación web pueda consultarlos remotamente.
+
+La sincronización se ejecuta cada 15 minutos y solo sube los registros nuevos
+o modificados (campo Reportado = 0 en SQL Server).
+
+================================================================================
+PASO 1 — REQUISITOS PREVIOS
+================================================================================
+
+1.1 Instalar Node.js (si no está instalado)
+    - Descargar desde: https://nodejs.org  (versión 18 o superior)
+    - Para verificar que quedó instalado, abrir CMD y ejecutar:
+        node -v
+      Debe mostrar algo como: v20.x.x
+
+1.2 Verificar que el equipo tiene acceso al SQL Server de la planta.
+    - Servidor: DESKTOP-QL2KBPV
+    - Instancia: SQLEXPRESS22
+    - Base de datos: DOSIPACK_CAMIONERA_OMYA
+    - Si el servidor es otro equipo en red, reemplazar el valor SQL_SERVER
+      en el archivo .env.local con la IP de ese equipo (ej. 192.168.1.10).
+
+================================================================================
+PASO 2 — COPIAR LA CARPETA DEL PROYECTO
+================================================================================
+
+Copiar toda la carpeta del proyecto en el equipo de la planta.
+Ruta recomendada (puede ser otra):
+    C:\Dosipack\sync-camionera\
+
+La carpeta debe contener al menos:
+    📁 sync-camionera\
+        ├── scripts\
+        │   └── sync-cloud.ts
+        ├── src\
+        ├── node_modules\        ← se incluye, no hace falta reinstalar
+        ├── package.json
+        ├── tsconfig.json
+        └── .env.local           ← archivo de configuración (ver Paso 3)
+
+================================================================================
+PASO 3 — CONFIGURAR EL ARCHIVO .env.local
+================================================================================
+
+El archivo .env.local ya viene con las credenciales de Firebase listas.
+Solo es necesario verificar/ajustar los datos de SQL Server:
+
+    SQL_SERVER=DESKTOP-QL2KBPV     ← nombre o IP del equipo con SQL Server
+    SQL_INSTANCE=SQLEXPRESS22       ← nombre de la instancia SQL
+    SQL_DATABASE=DOSIPACK_CAMIONERA_OMYA
+    SQL_USER=DosiAdmin
+    SQL_PASSWORD=***               ← ver el archivo .env.local
+
+Si el SQL Server está en otro equipo de la red, cambiar SQL_SERVER por
+la dirección IP de ese equipo y asegurarse de que el puerto 1433 esté
+habilitado en el firewall.
+
+IMPORTANTE: No compartir ni enviar por correo el archivo .env.local.
+Contiene las claves privadas de acceso a Firebase.
+
+================================================================================
+PASO 4 — PROBAR LA SINCRONIZACIÓN MANUALMENTE
+================================================================================
+
+Antes de programar la tarea, verificar que todo funciona:
+
+1. Abrir CMD (símbolo del sistema)
+2. Navegar a la carpeta del proyecto:
+       cd C:\Dosipack\sync-camionera
+3. Ejecutar:
+       npm run sync-cloud
+
+Resultado esperado:
+    [sync-cloud] iniciando — TOP 2000
+    [sync-cloud] conectando a SQL Server...
+    [sync-cloud] 347 filas leídas de SQL Server
+      upsert 347/347
+    [sync-cloud] marcando como reportados en SQL Server...
+    [sync-cloud] OK — 347 filas sincronizadas y marcadas como reportadas
+
+Si aparece un error de conexión SQL, revisar:
+  - Que el servicio SQL Server esté corriendo
+  - Que el nombre del servidor/instancia en .env.local sea correcto
+  - Que el usuario DosiAdmin tenga permisos de SELECT y UPDATE en la tabla
+
+Si aparece un error de Firebase, revisar que el archivo .env.local
+esté en la raíz de la carpeta del proyecto y no haya sido modificado.
+
+================================================================================
+PASO 5 — CREAR LA TAREA EN EL PROGRAMADOR DE TAREAS DE WINDOWS
+================================================================================
+
+5.1 Crear la carpeta de logs (para guardar el historial de ejecuciones):
+    - Abrir el Explorador de archivos
+    - Crear la carpeta: C:\Logs\
+
+5.2 Abrir el Programador de Tareas:
+    - Presionar Windows + R
+    - Escribir: taskschd.msc
+    - Presionar Enter
+
+5.3 Crear nueva tarea (NO "Crear tarea básica", sino "Crear tarea..."):
+    - En el panel derecho, hacer clic en "Crear tarea..."
+
+5.4 Pestaña GENERAL:
+    - Nombre: Sync Camionera Firebase
+    - Descripción: Sincroniza movimientos de SQL Server a Firebase cada 15 min
+    - Marcar: "Ejecutar tanto si el usuario inició sesión como si no"
+    - Marcar: "Ejecutar con los privilegios más altos"
+
+5.5 Pestaña DESENCADENADORES:
+    - Hacer clic en "Nuevo..."
+    - Iniciar la tarea: Al iniciarse (o En una programación)
+    - Repetir cada: 15 minutos
+    - Durante: Indefinidamente
+    - Habilitado: Sí
+    - Hacer clic en Aceptar
+
+5.6 Pestaña ACCIONES:
+    - Hacer clic en "Nueva..."
+    - Acción: Iniciar un programa
+    - Programa o script: cmd.exe
+    - Agregar argumentos:
+        /c npm run sync-cloud >> C:\Logs\sync-camionera.log 2>&1
+    - Iniciar en (carpeta del proyecto, SIN comillas):
+        C:\Dosipack\sync-camionera
+    - Hacer clic en Aceptar
+
+5.7 Pestaña CONDICIONES:
+    - Desmarcar: "Solo iniciar la tarea si el equipo está conectado a AC"
+
+5.8 Pestaña CONFIGURACIÓN:
+    - Marcar: "Ejecutar la tarea lo antes posible si se perdió un inicio programado"
+    - Marcar: "Si la tarea en ejecución no termina cuando se solicita, forzar su detención"
+
+5.9 Hacer clic en Aceptar.
+    - Windows pedirá la contraseña del usuario de Windows para guardar la tarea.
+    - Ingresar la contraseña y aceptar.
+
+================================================================================
+PASO 6 — VERIFICAR QUE LA TAREA ESTÁ FUNCIONANDO
+================================================================================
+
+Después de 15 minutos de creada la tarea:
+
+1. Abrir el archivo C:\Logs\sync-camionera.log
+   Debe mostrar las líneas de ejecución del sync.
+
+2. En el Programador de Tareas, seleccionar la tarea "Sync Camionera Firebase"
+   y ver la columna "Última ejecución" y "Resultado de última ejecución".
+   El resultado debe ser: 0x0 (éxito).
+
+3. Abrir la aplicación web y verificar que los datos se estén actualizando.
+
+================================================================================
+HERRAMIENTA DE UTILIDAD — RESET REPORTADO
+================================================================================
+
+Si en algún momento se necesita forzar una re-sincronización completa
+de todos los registros (por ejemplo, después de agregar columnas nuevas),
+ejecutar el siguiente comando en CMD desde la carpeta del proyecto:
+
+    npx tsx scripts/reset-reportado.ts
+
+Este script pone Reportado = 0 en todos los registros de SQL Server.
+La próxima ejecución del sync los volverá a subir todos a Firebase.
+
+ATENCIÓN: Esto puede tardar varios minutos dependiendo de la cantidad
+de registros. No cerrar la ventana hasta que termine.
+
+================================================================================
+SOPORTE
+================================================================================
+
+En caso de problemas, revisar el log en: C:\Logs\sync-camionera.log
+El log acumula todas las ejecuciones. Buscar líneas con "error" para
+identificar el problema.
+
+Errores comunes:
+  - "Login failed" → usuario o contraseña SQL incorrectos
+  - "Cannot open server" → nombre de servidor/instancia incorrecto o sin red
+  - "Firebase: Faltan variables" → archivo .env.local no encontrado o incompleto
+  - "ECONNREFUSED" → SQL Server no está corriendo o puerto bloqueado
+
+================================================================================
+FIN DEL DOCUMENTO
+================================================================================
