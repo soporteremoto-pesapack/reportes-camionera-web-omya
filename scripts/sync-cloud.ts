@@ -40,6 +40,9 @@ interface Row {
   BasculaEntrada: number | null;
   BasculaSalida: number | null;
   EntradaIso: string | null;
+  CodigoProducto: number | null;
+  NombreProducto: string | null;
+  NombreConductor: string | null;
 }
 
 function buildSqlConfig(): SqlConfig {
@@ -108,7 +111,8 @@ async function fetchTopMovimientos(pool: ConnectionPool): Promise<Row[]> {
       FechaEntrada, HoraEntrada, FechaSalida, HoraSalida,
       EstadoMovimiento, UsuarioPesajeEntrada, UsuarioPesajeSalida,
       Observaciones, TipoProceso, AlarmaPesoManual, AlarmaPesoVacio,
-      BasculaEntrada, BasculaSalida
+      BasculaEntrada, BasculaSalida,
+      CodigoProducto, NombreProducto, NombreConductor
     FROM dbo.Movimientos
     WHERE EstadoMovimiento IN (1, 2, 99)
       AND Reportado = 0
@@ -141,6 +145,9 @@ async function fetchTopMovimientos(pool: ConnectionPool): Promise<Row[]> {
       BasculaEntrada: toNum(r.BasculaEntrada),
       BasculaSalida: toNum(r.BasculaSalida),
       EntradaIso: entradaIso,
+      CodigoProducto: toNum(r.CodigoProducto),
+      NombreProducto: r.NombreProducto ?? null,
+      NombreConductor: r.NombreConductor ?? null,
     };
   });
 }

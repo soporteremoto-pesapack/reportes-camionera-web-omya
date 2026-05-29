@@ -32,6 +32,9 @@ interface FirestoreMovimientoDoc {
   BasculaEntrada: number | null;
   BasculaSalida: number | null;
   EntradaIso: string | null;
+  CodigoProducto: number | null;
+  NombreProducto: string | null;
+  NombreConductor: string | null;
 }
 
 function pad2(n: number): string {
@@ -69,6 +72,9 @@ function toMovimiento(d: FirestoreMovimientoDoc): Movimiento {
     BasculaSalida: d.BasculaSalida,
     EntradaTimestamp: combineTimestamp(d.FechaEntrada, d.HoraEntrada),
     SalidaTimestamp: combineTimestamp(d.FechaSalida, d.HoraSalida),
+    CodigoProducto: d.CodigoProducto ?? null,
+    NombreProducto: d.NombreProducto ?? null,
+    NombreConductor: d.NombreConductor ?? null,
   };
 }
 

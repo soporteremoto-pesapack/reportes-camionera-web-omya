@@ -44,6 +44,9 @@ export interface Movimiento {
   BasculaSalida: number | null;
   EntradaTimestamp: string | null;
   SalidaTimestamp: string | null;
+  CodigoProducto: number | null;
+  NombreProducto: string | null;
+  NombreConductor: string | null;
 }
 
 export interface MovimientoFilter {

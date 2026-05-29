@@ -222,6 +222,9 @@ export function MovimientosDashboard() {
           m.EstadoMovimiento != null
             ? ESTADO_MOVIMIENTO_LABELS[m.EstadoMovimiento] ?? m.EstadoMovimiento
             : "",
+        NombreConductor: m.NombreConductor ?? "",
+        CodigoProducto: m.CodigoProducto ?? "",
+        NombreProducto: m.NombreProducto ?? "",
         UsuarioPesajeEntrada: m.UsuarioPesajeEntrada ?? "",
         UsuarioPesajeSalida: m.UsuarioPesajeSalida ?? "",
         Observaciones: m.Observaciones ?? "",
@@ -271,6 +274,9 @@ export function MovimientosDashboard() {
         head: [[
           "Cod",
           "Placa",
+          "Conductor",
+          "Cód.Prod",
+          "Producto",
           "Entrada",
           "Salida",
           "P.Ent",
@@ -285,6 +291,9 @@ export function MovimientosDashboard() {
         body: sortedData.map((m) => [
           m.CodigoMovimiento,
           m.Placa ?? "",
+          m.NombreConductor ?? "",
+          m.CodigoProducto ?? "",
+          m.NombreProducto ?? "",
           formatDateTime(m.FechaEntrada, m.HoraEntrada),
           formatDateTime(m.FechaSalida, m.HoraSalida),
           formatNumber(m.PesoEntrada),
@@ -585,6 +594,9 @@ export function MovimientosDashboard() {
                       Tipo {sortArrow("TipoProceso")}
                     </button>
                   </TableHead>
+                  <TableHead>Conductor</TableHead>
+                  <TableHead>Cód. Producto</TableHead>
+                  <TableHead>Producto</TableHead>
                   <TableHead>Op. Entrada</TableHead>
                   <TableHead>Op. Salida</TableHead>
                   <TableHead>Báscula Ent.</TableHead>
@@ -597,7 +609,7 @@ export function MovimientosDashboard() {
               <TableBody>
                 {loading && (
                   <TableRow>
-                    <TableCell colSpan={16} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={19} className="py-8 text-center text-muted-foreground">
                       <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
                       Consultando...
                     </TableCell>
@@ -605,7 +617,7 @@ export function MovimientosDashboard() {
                 )}
                 {!loading && pageRows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={16} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={19} className="py-8 text-center text-muted-foreground">
                       Sin resultados.
                     </TableCell>
                   </TableRow>
@@ -636,6 +648,9 @@ export function MovimientosDashboard() {
                           ? TIPO_PROCESO_LABELS[m.TipoProceso] ?? m.TipoProceso
                           : "—"}
                       </TableCell>
+                      <TableCell>{m.NombreConductor ?? "—"}</TableCell>
+                      <TableCell className="font-mono">{m.CodigoProducto ?? "—"}</TableCell>
+                      <TableCell>{m.NombreProducto ?? "—"}</TableCell>
                       <TableCell>{m.UsuarioPesajeEntrada ?? "—"}</TableCell>
                       <TableCell>{m.UsuarioPesajeSalida ?? "—"}</TableCell>
                       <TableCell>
