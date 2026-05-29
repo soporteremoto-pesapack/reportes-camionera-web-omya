@@ -598,19 +598,13 @@ export function MovimientosDashboard() {
                   <TableHead>Conductor</TableHead>
                   <TableHead>Cód. Producto</TableHead>
                   <TableHead>Producto</TableHead>
-                  <TableHead>Op. Entrada</TableHead>
-                  <TableHead>Op. Salida</TableHead>
-                  <TableHead>Báscula Ent.</TableHead>
-                  <TableHead>Báscula Sal.</TableHead>
-                  <TableHead>A.Manual</TableHead>
-                  <TableHead>A.Vacío</TableHead>
                   <TableHead>Observaciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading && (
                   <TableRow>
-                    <TableCell colSpan={19} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={13} className="py-8 text-center text-muted-foreground">
                       <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />
                       Consultando...
                     </TableCell>
@@ -618,7 +612,7 @@ export function MovimientosDashboard() {
                 )}
                 {!loading && pageRows.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={19} className="py-8 text-center text-muted-foreground">
+                    <TableCell colSpan={13} className="py-8 text-center text-muted-foreground">
                       Sin resultados.
                     </TableCell>
                   </TableRow>
@@ -652,28 +646,6 @@ export function MovimientosDashboard() {
                       <TableCell>{m.NombreConductor ?? "—"}</TableCell>
                       <TableCell className="font-mono">{m.CodigoProducto ?? "—"}</TableCell>
                       <TableCell>{m.NombreProducto ?? "—"}</TableCell>
-                      <TableCell>{m.UsuarioPesajeEntrada ?? "—"}</TableCell>
-                      <TableCell>{m.UsuarioPesajeSalida ?? "—"}</TableCell>
-                      <TableCell>
-                        {m.BasculaEntrada != null
-                          ? BASCULA_LABELS[m.BasculaEntrada] ?? m.BasculaEntrada
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {m.BasculaSalida != null
-                          ? BASCULA_LABELS[m.BasculaSalida] ?? m.BasculaSalida
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {m.AlarmaPesoManual != null
-                          ? SI_NO_LABELS[m.AlarmaPesoManual] ?? m.AlarmaPesoManual
-                          : "—"}
-                      </TableCell>
-                      <TableCell>
-                        {m.AlarmaPesoVacio != null
-                          ? SI_NO_LABELS[m.AlarmaPesoVacio] ?? m.AlarmaPesoVacio
-                          : "—"}
-                      </TableCell>
                       <TableCell
                         className="max-w-[260px] truncate"
                         title={m.Observaciones ?? undefined}
