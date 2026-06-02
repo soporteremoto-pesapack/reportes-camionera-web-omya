@@ -7,9 +7,9 @@ function toIsoDate(value: unknown): string | null {
   if (value == null) return null;
   if (value instanceof Date) {
     if (Number.isNaN(value.getTime())) return null;
-    const y = value.getFullYear();
-    const m = String(value.getMonth() + 1).padStart(2, "0");
-    const d = String(value.getDate()).padStart(2, "0");
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(value.getUTCDate()).padStart(2, "0");
     return `${y}-${m}-${d}`;
   }
   return String(value);
@@ -81,7 +81,8 @@ export async function getMovimientos(filter: MovimientoFilter): Promise<Movimien
       FechaEntrada, HoraEntrada, FechaSalida, HoraSalida,
       EstadoMovimiento, UsuarioPesajeEntrada, UsuarioPesajeSalida,
       Observaciones, TipoProceso, AlarmaPesoManual, AlarmaPesoVacio,
-      BasculaEntrada, BasculaSalida
+      BasculaEntrada, BasculaSalida,
+      CodigoProducto, NombreProducto, NombreConductor
     FROM dbo.Movimientos
     ${where}
     ORDER BY FechaEntrada DESC, HoraEntrada DESC, CodigoMovimiento DESC
@@ -115,6 +116,9 @@ export async function getMovimientos(filter: MovimientoFilter): Promise<Movimien
       BasculaSalida: toNumberOrNull(row.BasculaSalida),
       EntradaTimestamp: combineTimestamp(fechaEntrada, horaEntrada),
       SalidaTimestamp: combineTimestamp(fechaSalida, horaSalida),
+      CodigoProducto: toNumberOrNull(row.CodigoProducto),
+      NombreProducto: row.NombreProducto ?? null,
+      NombreConductor: row.NombreConductor ?? null,
     };
   });
 }
