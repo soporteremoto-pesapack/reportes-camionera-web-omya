@@ -1,5 +1,7 @@
 
+import { LogOut } from "lucide-react";
 import { MovimientosDashboard } from "@/components/movimientos-dashboard";
+import { logoutAction } from "@/app/login/actions";
 
 const Logo = () => (
   <svg
@@ -29,7 +31,7 @@ const Logo = () => (
 export default function Home() {
   return (
     <div className="flex min-h-screen w-full flex-col bg-background">
-      <header className="sticky top-0 z-30 flex h-auto items-center gap-4 border-b bg-background/80 px-4 py-4 backdrop-blur-sm sm:px-6">
+      <header className="sticky top-0 z-30 flex h-auto items-center justify-between gap-4 border-b bg-background/80 px-4 py-4 backdrop-blur-sm sm:px-6">
          <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-full">
               <Logo />
@@ -43,6 +45,15 @@ export default function Home() {
               </p>
             </div>
           </div>
+          <form action={logoutAction}>
+            <button
+              type="submit"
+              className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline">Salir</span>
+            </button>
+          </form>
       </header>
       <main className="flex flex-1 flex-col gap-4 p-4 sm:px-6 md:gap-8">
         <MovimientosDashboard />

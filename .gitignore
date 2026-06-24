@@ -18,6 +18,10 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+.claude/
+
+# TypeScript build cache
+*.tsbuildinfo
 
 # Firebase service account keys
 *firebase-adminsdk*.json
